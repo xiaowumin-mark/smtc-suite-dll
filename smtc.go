@@ -18,7 +18,8 @@ import (
 // MessageType 定义消息类型
 const (
 	MessageTypeJSON = iota
-	MessageTypeBinary
+	MessageTypeAudio
+	MessageTypeCover
 )
 
 // Message 基础消息结构
@@ -75,6 +76,7 @@ type EventHandler interface {
 	OnSelectedSessionVanished(info *SelectedSessionVanishedInfo)
 	OnError(info *ErrorInfo)
 	OnAudioData(data []byte)
+	OnCoverData(data []byte)
 }
 
 // SMTCWrapper SMTC套件包装器
@@ -346,8 +348,10 @@ func GoCallback(data *C.uchar, length C.int) { // 确保是 C.uint64_t
 	switch msgType {
 	case MessageTypeJSON:
 		handleJSONMessage(payload)
-	case MessageTypeBinary:
-		handleBinaryMessage(payload)
+	case MessageTypeAudio:
+		handleAudioBinaryMessage(payload)
+	case MessageTypeCover:
+		handleCoverBinaryMessage(payload)
 	}
 
 	// 释放 Rust 分配的内存
@@ -414,7 +418,7 @@ func handleJSONMessage(data []byte) {
 	}
 }
 
-func handleBinaryMessage(data []byte) {
+func handleAudioBinaryMessage(data []byte) {
 	eventHandlerMutex.RLock()
 	handler := globalEventHandler
 	eventHandlerMutex.RUnlock()
@@ -425,4 +429,17 @@ func handleBinaryMessage(data []byte) {
 	}
 
 	handler.OnAudioData(data)
+}
+
+func handleCoverBinaryMessage(data []byte) {
+	eventHandlerMutex.RLock()
+	handler := globalEventHandler
+	eventHandlerMutex.RUnlock()
+
+	if handler == nil {
+		fmt.Printf("Received binary data: %d bytes (no event handler registered)\n", len(data))
+		return
+	}
+
+	handler.OnCoverData(data)
 }

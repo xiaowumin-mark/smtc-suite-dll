@@ -23,7 +23,8 @@ struct Message {
 #[repr(u8)]
 enum MessageType {
     Json = 0,
-    Binary = 1,
+    Audio = 1,
+    Cover = 2,
 }
 
 #[unsafe(no_mangle)]
@@ -56,6 +57,9 @@ pub extern "C" fn start_media_service(cb: Callback) -> bool {
             *ctrl_mutex.lock().unwrap() = Some(controller);
         }
 
+        // lastCoverDataHash
+        let mut last_cover_data_hash = None;
+
         while let Some(update) = update_rx.recv().await {
             match update {
                 MediaUpdate::TrackChanged(info) => {
@@ -87,13 +91,20 @@ pub extern "C" fn start_media_service(cb: Callback) -> bool {
                                 smtc_suite::RepeatMode::All => "all",
                             },
                             None => "unknown",
-                        }
-
+                        },
+                        //"cover_data_hash": info.cover_data_hash,
                     });
 
                     let message = Message::new("TrackChanged", track_data);
                     let json_msg = serde_json::to_string(&message).unwrap();
                     send_to_go_with_type(MessageType::Json, json_msg.into_bytes());
+
+                    if info.cover_data_hash != last_cover_data_hash {
+                        last_cover_data_hash = info.cover_data_hash;
+                        if let Some(cover_data) = info.cover_data {
+                            send_to_go_with_type(MessageType::Cover, cover_data);
+                        }
+                    }
                 }
                 MediaUpdate::SessionsChanged(info) => {
                     let session_array: Vec<_> = info
@@ -115,7 +126,7 @@ pub extern "C" fn start_media_service(cb: Callback) -> bool {
                     send_to_go_with_type(MessageType::Json, json_msg.into_bytes());
                 }
                 MediaUpdate::AudioData(mut info) => {
-                    send_to_go_with_type(MessageType::Binary, info);
+                    send_to_go_with_type(MessageType::Audio, info);
                 }
                 MediaUpdate::VolumeChanged {
                     session_id,

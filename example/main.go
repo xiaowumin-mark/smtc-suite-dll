@@ -1,8 +1,6 @@
-/*
 package main
 
 import (
-
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,107 +8,110 @@ import (
 	"time"
 
 	"github.com/xiaowumin-mark/go-smtc-suite"
-
 )
 
 // SimpleEventHandler 简单事件处理器
 type SimpleEventHandler struct{}
 
-	func (h *SimpleEventHandler) OnTrackChanged(info *smtc.TrackInfo) {
-		fmt.Printf("🎵 轨道更新: %s - %s\n", info.Artist, info.Title)
-	}
+func (h *SimpleEventHandler) OnTrackChanged(info *smtc.TrackInfo) {
+	fmt.Printf("🎵 轨道更新: %s - %s\n", info.Artist, info.Title)
+}
 
-	func (h *SimpleEventHandler) OnSessionsChanged(sessions []smtc.SessionInfo) {
-		fmt.Printf("📱 会话列表更新: %d 个会话\n", len(sessions))
-		for _, session := range sessions {
-			fmt.Printf("   - %s (%s)\n", session.DisplayName, session.SessionID)
+func (h *SimpleEventHandler) OnSessionsChanged(sessions []smtc.SessionInfo) {
+	fmt.Printf("📱 会话列表更新: %d 个会话\n", len(sessions))
+	for _, session := range sessions {
+		fmt.Printf("   - %s (%s)\n", session.DisplayName, session.SessionID)
+	}
+}
+
+func (h *SimpleEventHandler) OnVolumeChanged(info *smtc.VolumeInfo) {
+	fmt.Printf("🔊 音量变化: %.0f%% (静音: %v)\n", info.Volume*100, info.IsMuted)
+}
+
+func (h *SimpleEventHandler) OnSelectedSessionVanished(info *smtc.SelectedSessionVanishedInfo) {
+	fmt.Printf("❌ 选中会话消失: %s\n", info.Info)
+}
+
+func (h *SimpleEventHandler) OnError(info *smtc.ErrorInfo) {
+	fmt.Printf("⚠️ 错误: %s\n", info.Info)
+}
+
+func (h *SimpleEventHandler) OnAudioData(data []byte) {
+	fmt.Printf("🎧 音频数据: %d 字节\n", len(data))
+}
+
+func (h *SimpleEventHandler) OnCoverData(data []byte) {
+	fmt.Printf("🖼️ 封面数据: %d 字节\n", len(data))
+}
+
+func main() {
+	fmt.Println("=== SMTC套件简单测试 ===")
+	fmt.Println("这个示例演示了SMTC套件的基本功能")
+	fmt.Println()
+
+	// 创建SMTC包装器
+	wrapper := smtc.NewSMTCWrapper()
+
+	// 设置事件处理器
+	handler := &SimpleEventHandler{}
+	wrapper.SetEventHandler(handler)
+
+	// 启动媒体服务
+	fmt.Println("正在启动媒体服务...")
+	if err := wrapper.Start(); err != nil {
+		fmt.Printf("❌ 启动失败: %v\n", err)
+		return
+	}
+	fmt.Println("✅ 媒体服务启动成功!")
+	fmt.Println()
+
+	// 设置一些配置
+	fmt.Println("正在配置服务...")
+	wrapper.SetHighFrequencyProgressUpdates(true)
+	wrapper.SetAppleMusicOptimization(true)
+	fmt.Println("✅ 配置完成")
+	fmt.Println()
+
+	fmt.Println("🎯 服务正在运行中...")
+	fmt.Println("   现在可以播放音乐或视频，观察事件输出")
+	fmt.Println("   按 Ctrl+C 退出程序")
+	fmt.Println()
+
+	// 设置信号处理，优雅退出
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		fmt.Println("\n🛑 收到退出信号，正在停止服务...")
+
+		// 停止音频捕获
+		if err := wrapper.StopAudioCapture(); err != nil {
+			fmt.Printf("⚠️ 停止音频捕获失败: %v\n", err)
+		} else {
+			fmt.Println("✅ 音频捕获已停止")
+		}
+
+		// 停止媒体服务
+		wrapper.Stop()
+		fmt.Println("✅ 媒体服务已停止")
+		fmt.Println("👋 程序退出")
+		os.Exit(0)
+	}()
+
+	// 保持程序运行，等待事件
+	for {
+		time.Sleep(1 * time.Second)
+
+		// 每10秒检查一次服务状态
+		if !wrapper.IsRunning() {
+			fmt.Println("❌ 服务意外停止")
+			break
 		}
 	}
+}
 
-	func (h *SimpleEventHandler) OnVolumeChanged(info *smtc.VolumeInfo) {
-		fmt.Printf("🔊 音量变化: %.0f%% (静音: %v)\n", info.Volume*100, info.IsMuted)
-	}
-
-	func (h *SimpleEventHandler) OnSelectedSessionVanished(info *smtc.SelectedSessionVanishedInfo) {
-		fmt.Printf("❌ 选中会话消失: %s\n", info.Info)
-	}
-
-	func (h *SimpleEventHandler) OnError(info *smtc.ErrorInfo) {
-		fmt.Printf("⚠️ 错误: %s\n", info.Info)
-	}
-
-	func (h *SimpleEventHandler) OnAudioData(data []byte) {
-		fmt.Printf("🎧 音频数据: %d 字节\n", len(data))
-	}
-
-	func main() {
-		fmt.Println("=== SMTC套件简单测试 ===")
-		fmt.Println("这个示例演示了SMTC套件的基本功能")
-		fmt.Println()
-
-		// 创建SMTC包装器
-		wrapper := smtc.NewSMTCWrapper()
-
-		// 设置事件处理器
-		handler := &SimpleEventHandler{}
-		wrapper.SetEventHandler(handler)
-
-		// 启动媒体服务
-		fmt.Println("正在启动媒体服务...")
-		if err := wrapper.Start(); err != nil {
-			fmt.Printf("❌ 启动失败: %v\n", err)
-			return
-		}
-		fmt.Println("✅ 媒体服务启动成功!")
-		fmt.Println()
-
-		// 设置一些配置
-		fmt.Println("正在配置服务...")
-		wrapper.SetHighFrequencyProgressUpdates(true)
-		wrapper.SetAppleMusicOptimization(true)
-		fmt.Println("✅ 配置完成")
-		fmt.Println()
-
-		fmt.Println("🎯 服务正在运行中...")
-		fmt.Println("   现在可以播放音乐或视频，观察事件输出")
-		fmt.Println("   按 Ctrl+C 退出程序")
-		fmt.Println()
-
-		// 设置信号处理，优雅退出
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-		go func() {
-			<-c
-			fmt.Println("\n🛑 收到退出信号，正在停止服务...")
-
-			// 停止音频捕获
-			if err := wrapper.StopAudioCapture(); err != nil {
-				fmt.Printf("⚠️ 停止音频捕获失败: %v\n", err)
-			} else {
-				fmt.Println("✅ 音频捕获已停止")
-			}
-
-			// 停止媒体服务
-			wrapper.Stop()
-			fmt.Println("✅ 媒体服务已停止")
-			fmt.Println("👋 程序退出")
-			os.Exit(0)
-		}()
-
-		// 保持程序运行，等待事件
-		for {
-			time.Sleep(1 * time.Second)
-
-			// 每10秒检查一次服务状态
-			if !wrapper.IsRunning() {
-				fmt.Println("❌ 服务意外停止")
-				break
-			}
-		}
-	}
-*/
-package main
+/*package main
 
 import (
 	"encoding/json"
@@ -177,6 +178,13 @@ func (h *MyEventHandler) OnAudioData(data []byte) {
 	fmt.Printf("=== 音频数据 ===\n")
 	fmt.Printf("收到 %d 字节音频数据\n", len(data))
 	// 这里可以处理音频数据，比如保存到文件或进行音频分析
+	fmt.Println()
+}
+
+func (h *MyEventHandler) OnCoverData(data []byte) {
+	fmt.Printf("=== 封面数据 ===\n")
+	fmt.Printf("收到 %d 字节封面数据\n", len(data))
+	// 这里可以处理封面数据，比如保存到文件或进行图片处理
 	fmt.Println()
 }
 
@@ -365,3 +373,4 @@ func toJSON(v interface{}) string {
 	}
 	return string(data)
 }
+*/
